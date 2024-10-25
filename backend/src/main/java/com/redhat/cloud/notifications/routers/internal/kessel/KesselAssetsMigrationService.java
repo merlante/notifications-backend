@@ -134,12 +134,12 @@ public class KesselAssetsMigrationService {
                 )
                 .whilst(endpoints -> endpoints.size() == limit);
 
-        Multi<ImportBulkTuplesRequest> ImportBulkTuplesRequestMulti = endpointBatchMulti
+        Multi<ImportBulkTuplesRequest> importBulkTuplesRequestMulti = endpointBatchMulti
                 .map(endpoints -> endpoints.stream().map(this::endpointToRelationship).toList())
                 .map(relationships -> ImportBulkTuplesRequest.newBuilder().addAllTuples(relationships).build());
 
         Uni<ImportBulkTuplesResponse> importBulkTuplesResponseUni =
-                this.relationTuplesClient.importBulkTuplesUni(ImportBulkTuplesRequestMulti);
+                this.relationTuplesClient.importBulkTuplesUni(importBulkTuplesRequestMulti);
 
         var failure = new AtomicReference<Throwable>();
         var response = importBulkTuplesResponseUni
