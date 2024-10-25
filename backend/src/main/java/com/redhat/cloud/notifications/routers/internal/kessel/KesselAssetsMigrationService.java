@@ -10,6 +10,8 @@ import com.redhat.cloud.notifications.models.Endpoint;
 import com.redhat.cloud.notifications.models.Status;
 import io.grpc.stub.StreamObserver;
 import io.quarkus.logging.Log;
+import io.smallrye.mutiny.Multi;
+import io.smallrye.mutiny.Uni;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -18,14 +20,20 @@ import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import org.project_kessel.api.relations.v1beta1.CreateTuplesRequest;
 import org.project_kessel.api.relations.v1beta1.CreateTuplesResponse;
+import org.project_kessel.api.relations.v1beta1.ImportBulkTuplesRequest;
+import org.project_kessel.api.relations.v1beta1.ImportBulkTuplesResponse;
 import org.project_kessel.api.relations.v1beta1.ObjectReference;
 import org.project_kessel.api.relations.v1beta1.ObjectType;
 import org.project_kessel.api.relations.v1beta1.Relationship;
 import org.project_kessel.api.relations.v1beta1.SubjectReference;
 import org.project_kessel.relations.client.RelationTuplesClient;
 
+import java.io.ObjectStreamClass;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.IntStream;
 
 import static com.redhat.cloud.notifications.Constants.API_INTERNAL;
 
@@ -102,6 +110,48 @@ public class KesselAssetsMigrationService {
         Log.infof("Finished migrating integrations to the Kessel inventory");
     }
 
+    public void migrateAssets2() {
+        // We need the application to be in maintenance mode to avoid any
+        // updates to the database, which could cause the Notifications
+        // database and the Kessel inventory to be out of sync.
+        if (Status.MAINTENANCE != this.statusRepository.getCurrentStatus().getStatus()) {
+            throw new BadRequestException("Unable to execute migration because the application is not in maintenance mode");
+        }
+
+        /*
+        Re functional programming:
+
+        “There's a fine line between genius and insanity. I have erased this line.”
+            ― Oscar Levant
+         */
+
+        final int limit = this.backendConfig.getKesselMigrationBatchSize();
+        AtomicInteger offsetContainer = new AtomicInteger();
+        Multi<List<Endpoint>> endpointBatchMulti = Multi.createBy().repeating()
+                .supplier(
+                        () -> offsetContainer.addAndGet(limit),
+                        offset -> this.endpointRepository.getNonSystemEndpointsWithLimitAndOffset(limit, offset)
+                )
+                .whilst(endpoints -> endpoints.size() == limit);
+
+        Multi<ImportBulkTuplesRequest> ImportBulkTuplesRequestMulti = endpointBatchMulti
+                .map(endpoints -> endpoints.stream().map(this::endpointToRelationship).toList())
+                .map(relationships -> ImportBulkTuplesRequest.newBuilder().addAllTuples(relationships).build());
+
+        Uni<ImportBulkTuplesResponse> importBulkTuplesResponseUni =
+                this.relationTuplesClient.importBulkTuplesUni(ImportBulkTuplesRequestMulti);
+
+        var failure = new AtomicReference<Throwable>();
+        var response = importBulkTuplesResponseUni
+                .onFailure().invoke(failure::set)
+                .onFailure().recoverWithNull()
+                .await().indefinitely();
+
+        // All good: response is good.
+        // Failure: response is null, failure.get() gives you the failure.
+
+    }
+
     /**
      * Creates a bulk import request ready to be sent to kessel.
      * @param endpoints the list of endpoints to create the bulk import request
@@ -140,5 +190,24 @@ public class KesselAssetsMigrationService {
             .newBuilder()
             .addAllTuples(relations)
             .build();
+    }
+
+    protected Relationship endpointToRelationship(Endpoint endpoint) {
+        return Relationship.newBuilder()
+                .setResource(
+                        ObjectReference.newBuilder()
+                                .setType(ResourceType.INTEGRATION.getKesselObjectType())
+                                .setId(endpoint.getId().toString())
+                                .build()
+                ).setRelation(RELATION)
+                .setSubject(
+                        SubjectReference.newBuilder()
+                                .setSubject(
+                                        ObjectReference.newBuilder()
+                                                .setType(ObjectType.newBuilder().setNamespace("rbac").setName("workspace").build())
+                                                .setId(this.workspaceUtils.getDefaultWorkspaceId(endpoint.getOrgId()).toString())
+                                                .build()
+                                ).build()
+                ).build();
     }
 }
