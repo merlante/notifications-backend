@@ -416,7 +416,7 @@ public class EndpointResource {
 
         endpoint.setEventTypes(endpointEventTypeRepository.fetchAndValidateEndpointsEventTypesAssociation(eventTypes, Set.of(endpoint.getType())));
 
-        this.secretUtils.createSecretsForEndpoint(endpoint);
+        //this.secretUtils.createSecretsForEndpoint(endpoint);
 
         final Endpoint createdEndpoint = this.endpointRepository.createEndpoint(endpoint);
 
@@ -627,7 +627,7 @@ public class EndpointResource {
         // - We need to recreate the integration in Kessel Inventory, so that
         // everything stays in sync.
         try {
-            this.secretUtils.deleteSecretsForEndpoint(endpoint);
+            //this.secretUtils.deleteSecretsForEndpoint(endpoint);
         } catch (final Exception e) {
             if (this.backendConfig.isKesselInventoryEnabled(orgId)) {
                 final UUID workspaceId = this.workspaceUtils.getDefaultWorkspaceId(orgId);
