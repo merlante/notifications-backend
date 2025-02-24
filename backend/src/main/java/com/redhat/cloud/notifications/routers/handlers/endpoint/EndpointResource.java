@@ -487,7 +487,7 @@ public class EndpointResource {
         if (this.backendConfig.isKesselRelationsEnabled(getOrgId(sec))) {
             final UUID workspaceId = this.workspaceUtils.getDefaultWorkspaceId(getOrgId(sec));
 
-            this.kesselAuthorization.hasPermissionOnWorkspace(sec, WorkspacePermission.CREATE_EMAIL_SUBSCRIPTION_INTEGRATION, workspaceId);
+            this.kesselAuthorization.hasCreatePermissionOnResource(sec, WorkspacePermission.CREATE_EMAIL_SUBSCRIPTION_INTEGRATION, ResourceType.WORKSPACE, workspaceId.toString());
 
             endpoint = this.getOrCreateSystemSubscriptionEndpoint(sec, requestProps, EMAIL_SUBSCRIPTION);
         } else {
