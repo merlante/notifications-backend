@@ -4,6 +4,7 @@ import com.redhat.cloud.notifications.Constants;
 import com.redhat.cloud.notifications.auth.ConsoleIdentityProvider;
 import com.redhat.cloud.notifications.auth.kessel.KesselAssets;
 import com.redhat.cloud.notifications.auth.kessel.KesselAuthorization;
+import com.redhat.cloud.notifications.auth.kessel.ResourceType;
 import com.redhat.cloud.notifications.auth.kessel.permission.IntegrationPermission;
 import com.redhat.cloud.notifications.auth.kessel.permission.WorkspacePermission;
 import com.redhat.cloud.notifications.auth.principal.rhid.RhIdPrincipal;
@@ -45,6 +46,7 @@ import com.redhat.cloud.notifications.routers.models.Meta;
 import com.redhat.cloud.notifications.routers.models.RequestSystemSubscriptionProperties;
 import com.redhat.cloud.notifications.routers.sources.SecretUtils;
 import io.quarkus.logging.Log;
+import io.smallrye.mutiny.Multi;
 import io.vertx.core.json.JsonObject;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
@@ -80,6 +82,7 @@ import org.eclipse.microprofile.openapi.annotations.responses.APIResponses;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.jboss.resteasy.reactive.RestPath;
+import org.project_kessel.api.inventory.v1beta1.resources.ListNotificationsIntegrationsResponse;
 
 import java.net.URI;
 import java.util.ArrayList;
@@ -187,7 +190,7 @@ public class EndpointResource {
         })
         public List<NotificationHistoryDTO> getEndpointHistory(@Context SecurityContext sec, @PathParam("id") UUID id, @QueryParam("includeDetail") Boolean includeDetail, @BeanParam Query query) {
             if (this.backendConfig.isKesselRelationsEnabled(getOrgId(sec))) {
-                this.kesselAuthorization.hasPermissionOnIntegration(sec, IntegrationPermission.VIEW_HISTORY, id);
+                this.kesselAuthorization.hasViewPermissionOnResource(sec, IntegrationPermission.VIEW_HISTORY, ResourceType.INTEGRATION, id.toString());
 
                 return this.internalGetEndpointHistory(sec, id, includeDetail, query);
             } else {
@@ -238,7 +241,19 @@ public class EndpointResource {
     ) {
         if (this.backendConfig.isKesselRelationsEnabled(getOrgId(sec))) {
             // Fetch the set of integration IDs the user is authorized to view.
-            final Set<UUID> authorizedIds = this.kesselAuthorization.lookupAuthorizedIntegrations(sec, IntegrationPermission.VIEW);
+
+            final UUID workspaceId = this.workspaceUtils.getDefaultWorkspaceId(getOrgId(sec));
+
+            // add permission as argument -- rather than assuming it underneath
+            final Multi<ListNotificationsIntegrationsResponse> responseMulti = this.kesselAssets.listIntegrations(sec, workspaceId.toString());
+            Set<UUID> authorizedIds = responseMulti.map(ListNotificationsIntegrationsResponse::getIntegrations)
+                    .map(i -> i.getReporterData().getLocalResourceId())
+                    .map(UUID::fromString)
+                    .collect()
+                    .asSet()
+                    .await().indefinitely();
+
+            //final Set<UUID> authorizedIds = this.kesselAuthorization.lookupAuthorizedIntegrations(sec, IntegrationPermission.VIEW);
             if (authorizedIds.isEmpty()) {
                 Log.infof("[org_id: %s][username: %s] Kessel did not return any integration IDs for the request", getOrgId(sec), getUsername(sec));
 
@@ -342,7 +357,7 @@ public class EndpointResource {
         if (this.backendConfig.isKesselRelationsEnabled(getOrgId(sec))) {
             final UUID workspaceId = this.workspaceUtils.getDefaultWorkspaceId(getOrgId(sec));
 
-            this.kesselAuthorization.hasPermissionOnWorkspace(sec, WorkspacePermission.INTEGRATIONS_CREATE, workspaceId);
+            this.kesselAuthorization.hasCreatePermissionOnResource(sec, WorkspacePermission.INTEGRATIONS_CREATE, ResourceType.WORKSPACE, workspaceId.toString());
 
             return this.internalCreateEndpoint(sec, endpointDTO);
         } else {
@@ -416,7 +431,7 @@ public class EndpointResource {
 
         endpoint.setEventTypes(endpointEventTypeRepository.fetchAndValidateEndpointsEventTypesAssociation(eventTypes, Set.of(endpoint.getType())));
 
-        this.secretUtils.createSecretsForEndpoint(endpoint);
+        //this.secretUtils.createSecretsForEndpoint(endpoint);
 
         final Endpoint createdEndpoint = this.endpointRepository.createEndpoint(endpoint);
 
@@ -494,7 +509,7 @@ public class EndpointResource {
         if (this.backendConfig.isKesselRelationsEnabled(getOrgId(sec))) {
             final UUID workspaceId = this.workspaceUtils.getDefaultWorkspaceId(getOrgId(sec));
 
-            this.kesselAuthorization.hasPermissionOnWorkspace(sec, WorkspacePermission.CREATE_DRAWER_INTEGRATION, workspaceId);
+            this.kesselAuthorization.hasCreatePermissionOnResource(sec, WorkspacePermission.CREATE_DRAWER_INTEGRATION, ResourceType.WORKSPACE, workspaceId);
 
             endpoint = this.getOrCreateSystemSubscriptionEndpoint(sec, requestProps, DRAWER);
         } else {
@@ -543,7 +558,7 @@ public class EndpointResource {
     @Operation(summary = "Retrieve an endpoint", description = "Retrieves the public information associated with an endpoint such as its description, name, and properties.")
     public EndpointDTO getEndpoint(@Context SecurityContext sec, @PathParam("id") UUID id) {
         if (this.backendConfig.isKesselRelationsEnabled(getOrgId(sec))) {
-            this.kesselAuthorization.hasPermissionOnIntegration(sec, IntegrationPermission.VIEW, id);
+            this.kesselAuthorization.hasViewPermissionOnResource(sec, IntegrationPermission.VIEW, ResourceType.INTEGRATION, id.toString());
 
             return this.internalGetEndpoint(sec, id, false);
         } else {
@@ -583,7 +598,7 @@ public class EndpointResource {
     @Transactional
     public Response deleteEndpoint(@Context SecurityContext sec, @PathParam("id") UUID id) {
         if (this.backendConfig.isKesselRelationsEnabled(getOrgId(sec))) {
-            this.kesselAuthorization.hasPermissionOnIntegration(sec, IntegrationPermission.DELETE, id);
+            this.kesselAuthorization.hasUpdatePermissionOnResource(sec, IntegrationPermission.DELETE, ResourceType.INTEGRATION, id.toString());
 
             return this.internalDeleteEndpoint(sec, id);
         } else {
@@ -627,7 +642,7 @@ public class EndpointResource {
         // - We need to recreate the integration in Kessel Inventory, so that
         // everything stays in sync.
         try {
-            this.secretUtils.deleteSecretsForEndpoint(endpoint);
+            //this.secretUtils.deleteSecretsForEndpoint(endpoint);
         } catch (final Exception e) {
             if (this.backendConfig.isKesselInventoryEnabled(orgId)) {
                 final UUID workspaceId = this.workspaceUtils.getDefaultWorkspaceId(orgId);

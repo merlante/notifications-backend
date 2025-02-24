@@ -12,6 +12,7 @@ import com.redhat.cloud.notifications.routers.models.Meta;
 import com.redhat.cloud.notifications.routers.models.Page;
 import com.redhat.cloud.notifications.routers.models.PageLinksBuilder;
 import io.quarkus.logging.Log;
+import io.smallrye.mutiny.Multi;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.BeanParam;
@@ -30,6 +31,7 @@ import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameters;
+import org.project_kessel.api.inventory.v1beta1.resources.ListNotificationsIntegrationsResponse;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -149,7 +151,20 @@ public class EndpointResourceV2 extends EndpointResource {
     ) {
         if (this.backendConfig.isKesselRelationsEnabled(getOrgId(sec))) {
             // Fetch the set of integration IDs the user is authorized to view.
-            final Set<UUID> authorizedIds = this.kesselAuthorization.lookupAuthorizedIntegrations(sec, IntegrationPermission.VIEW);
+            final UUID workspaceId = this.workspaceUtils.getDefaultWorkspaceId(getOrgId(sec));
+
+            Log.errorf("[org_id: %s][username: %s] Kessel did not return any integration IDs for the request", getOrgId(sec), getUsername(sec));
+
+            // add permission as argument -- rather than assuming it underneath
+            final Multi<ListNotificationsIntegrationsResponse> responseMulti = this.kesselAssets.listIntegrations(sec, workspaceId.toString());
+            Set<UUID> authorizedIds = responseMulti.map(ListNotificationsIntegrationsResponse::getIntegrations)
+                    .map(i -> i.getReporterData().getLocalResourceId())
+                    .map(UUID::fromString)
+                    .collect()
+                    .asSet()
+                    .await().indefinitely();
+
+            //final Set<UUID> authorizedIds = this.kesselAuthorization.lookupAuthorizedIntegrations(sec, IntegrationPermission.VIEW);
             if (authorizedIds.isEmpty()) {
                 Log.infof("[org_id: %s][username: %s] Kessel did not return any integration IDs for the request", getOrgId(sec), getUsername(sec));
 
