@@ -509,7 +509,7 @@ public class EndpointResource {
         if (this.backendConfig.isKesselRelationsEnabled(getOrgId(sec))) {
             final UUID workspaceId = this.workspaceUtils.getDefaultWorkspaceId(getOrgId(sec));
 
-            this.kesselAuthorization.hasCreatePermissionOnResource(sec, WorkspacePermission.CREATE_DRAWER_INTEGRATION, ResourceType.WORKSPACE, workspaceId);
+            this.kesselAuthorization.hasCreatePermissionOnResource(sec, WorkspacePermission.CREATE_DRAWER_INTEGRATION, ResourceType.WORKSPACE, workspaceId.toString());
 
             endpoint = this.getOrCreateSystemSubscriptionEndpoint(sec, requestProps, DRAWER);
         } else {
@@ -664,7 +664,7 @@ public class EndpointResource {
     @Transactional
     public Response enableEndpoint(@Context SecurityContext sec, @PathParam("id") UUID id) {
         if (this.backendConfig.isKesselRelationsEnabled(getOrgId(sec))) {
-            this.kesselAuthorization.hasPermissionOnIntegration(sec, IntegrationPermission.ENABLE, id);
+            this.kesselAuthorization.hasUpdatePermissionOnResource(sec, IntegrationPermission.ENABLE, ResourceType.INTEGRATION, id.toString());
 
             return this.internalEnableEndpoint(sec, id);
         } else {
@@ -695,7 +695,7 @@ public class EndpointResource {
     @Transactional
     public Response disableEndpoint(@Context SecurityContext sec, @PathParam("id") UUID id) {
         if (this.backendConfig.isKesselRelationsEnabled(getOrgId(sec))) {
-            this.kesselAuthorization.hasPermissionOnIntegration(sec, IntegrationPermission.DISABLE, id);
+            this.kesselAuthorization.hasUpdatePermissionOnResource(sec, IntegrationPermission.DISABLE, ResourceType.INTEGRATION, id.toString());
 
             return this.internalDisableEndpoint(sec, id);
         } else {
@@ -731,7 +731,7 @@ public class EndpointResource {
         @RequestBody(required = true) @NotNull @Valid   EndpointDTO endpointDTO
     ) {
         if (this.backendConfig.isKesselRelationsEnabled(getOrgId(securityContext))) {
-            this.kesselAuthorization.hasPermissionOnIntegration(securityContext, IntegrationPermission.EDIT, id);
+            this.kesselAuthorization.hasUpdatePermissionOnResource(securityContext, IntegrationPermission.EDIT, ResourceType.INTEGRATION, id.toString());
 
             return this.internalUpdateEndpoint(securityContext, id, endpointDTO);
         }
@@ -828,7 +828,7 @@ public class EndpointResource {
     @APIResponse(responseCode = "200", content = @Content(schema = @Schema(type = SchemaType.STRING)))
     public Response getDetailedEndpointHistory(@Context SecurityContext sec, @PathParam("id") UUID endpointId, @PathParam("history_id") UUID historyId) {
         if (this.backendConfig.isKesselRelationsEnabled(getOrgId(sec))) {
-            this.kesselAuthorization.hasPermissionOnIntegration(sec, IntegrationPermission.VIEW_HISTORY, endpointId);
+            this.kesselAuthorization.hasViewPermissionOnResource(sec, IntegrationPermission.VIEW_HISTORY, ResourceType.INTEGRATION, endpointId.toString());
 
             return this.internalGetDetailedEndpointHistory(sec, endpointId, historyId);
         } else {
@@ -875,7 +875,7 @@ public class EndpointResource {
     })
     public void testEndpoint(@Context SecurityContext sec, @RestPath UUID uuid, @RequestBody final EndpointTestRequest requestBody) {
         if (this.backendConfig.isKesselRelationsEnabled(getOrgId(sec))) {
-            this.kesselAuthorization.hasPermissionOnIntegration(sec, IntegrationPermission.TEST, uuid);
+            this.kesselAuthorization.hasCreatePermissionOnResource(sec, IntegrationPermission.TEST, ResourceType.INTEGRATION, uuid.toString());
 
             this.internalTestEndpoint(sec, uuid, requestBody);
         } else {
@@ -932,7 +932,7 @@ public class EndpointResource {
         boolean shouldRedactSecrets;
         if (this.backendConfig.isKesselRelationsEnabled(getOrgId(securityContext))) {
             try {
-                this.kesselAuthorization.hasPermissionOnIntegration(securityContext, IntegrationPermission.EDIT, endpoint.getId());
+                this.kesselAuthorization.hasViewPermissionOnResource(securityContext, IntegrationPermission.EDIT, ResourceType.INTEGRATION, endpoint.getId().toString());
                 shouldRedactSecrets = false;
             } catch (final ForbiddenException | NotFoundException e) {
                 shouldRedactSecrets = true;
@@ -974,7 +974,7 @@ public class EndpointResource {
     @Transactional
     public void deleteEventTypeFromEndpoint(@Context final SecurityContext securityContext, @RestPath final UUID eventTypeId, @RestPath final UUID endpointId) {
         if (this.backendConfig.isKesselRelationsEnabled(getOrgId(securityContext))) {
-            this.kesselAuthorization.hasPermissionOnIntegration(securityContext, IntegrationPermission.EDIT, endpointId);
+            this.kesselAuthorization.hasUpdatePermissionOnResource(securityContext, IntegrationPermission.EDIT, ResourceType.INTEGRATION, endpointId.toString());
 
             internalDeleteEventTypeFromEndpoint(securityContext, eventTypeId, endpointId);
         } else {
@@ -1016,7 +1016,7 @@ public class EndpointResource {
     @Transactional
     public void addEventTypeToEndpoint(@Context final SecurityContext securityContext, @RestPath final UUID eventTypeId, @RestPath final UUID endpointId) {
         if (this.backendConfig.isKesselRelationsEnabled(getOrgId(securityContext))) {
-            this.kesselAuthorization.hasPermissionOnIntegration(securityContext, IntegrationPermission.EDIT, endpointId);
+            this.kesselAuthorization.hasCreatePermissionOnResource(securityContext, IntegrationPermission.EDIT, ResourceType.INTEGRATION, endpointId.toString());
 
             internalAddEventTypeToEndpoint(securityContext, eventTypeId, endpointId);
         } else {
@@ -1050,7 +1050,7 @@ public class EndpointResource {
     @Transactional
     public void updateEventTypesLinkedToEndpoint(@Context final SecurityContext securityContext, @RestPath final UUID endpointId, @Parameter(description = "Set of event type ids to associate") Set<UUID> eventTypeIds) {
         if (this.backendConfig.isKesselRelationsEnabled(getOrgId(securityContext))) {
-            this.kesselAuthorization.hasPermissionOnIntegration(securityContext, IntegrationPermission.EDIT, endpointId);
+            this.kesselAuthorization.hasUpdatePermissionOnResource(securityContext, IntegrationPermission.EDIT, ResourceType.INTEGRATION, endpointId.toString());
 
             internalUpdateEventTypesLinkedToEndpoint(securityContext, endpointId, eventTypeIds);
         } else {
