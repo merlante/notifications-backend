@@ -2,6 +2,7 @@ package com.redhat.cloud.notifications.routers.handlers.endpoint;
 
 import com.redhat.cloud.notifications.Constants;
 import com.redhat.cloud.notifications.auth.ConsoleIdentityProvider;
+import com.redhat.cloud.notifications.auth.kessel.ResourceType;
 import com.redhat.cloud.notifications.auth.kessel.permission.IntegrationPermission;
 import com.redhat.cloud.notifications.db.Query;
 import com.redhat.cloud.notifications.models.NotificationHistory;
@@ -78,7 +79,7 @@ public class EndpointResourceV2 extends EndpointResource {
         @BeanParam Query query
     ) {
         if (this.backendConfig.isKesselRelationsEnabled(getOrgId(sec))) {
-            this.kesselAuthorization.hasPermissionOnIntegration(sec, IntegrationPermission.VIEW_HISTORY, id);
+            this.kesselAuthorization.hasViewPermissionOnResource(sec, IntegrationPermission.VIEW_HISTORY, ResourceType.INTEGRATION, id.toString());
 
             return this.internalGetEndpointHistory(sec, uriInfo, id, includeDetail, query);
         } else {
@@ -115,7 +116,7 @@ public class EndpointResourceV2 extends EndpointResource {
     @Operation(summary = "Retrieve an endpoint", description = "Retrieves the public information associated with an endpoint such as its description, name, and properties.")
     public EndpointDTO getEndpoint(@Context SecurityContext sec, @PathParam("id") UUID id) {
         if (this.backendConfig.isKesselRelationsEnabled(getOrgId(sec))) {
-            this.kesselAuthorization.hasPermissionOnIntegration(sec, IntegrationPermission.VIEW, id);
+            this.kesselAuthorization.hasViewPermissionOnResource(sec, IntegrationPermission.VIEW, ResourceType.INTEGRATION, id.toString());
 
             return this.internalGetEndpoint(sec, id, true);
         } else {
